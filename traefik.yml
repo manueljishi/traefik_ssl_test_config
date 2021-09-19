@@ -1,0 +1,4 @@
+tls:
+  certificates:
+    - certFile: ./certs/52210668_localhost.cert
+      keyFile: ./certs/52210668_localhost.key

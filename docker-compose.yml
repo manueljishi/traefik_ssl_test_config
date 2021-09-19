@@ -1,0 +1,67 @@
+version: "3"
+
+services:
+  reverse-proxy:
+    # The official v2 Traefik docker image
+    image: traefik:v2.5
+    # Enables the web UI and tells Traefik to listen to docker
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web-secure.address=:443" #Declares the https port
+      - "--providers.file.directory=/configuration"
+      - "--providers.file.watch=true"
+    ports:
+      # The HTTP port
+      - "80:80"
+      # The HTTPS port
+      - "443:443"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "./certs:/configuration/"
+  whoami:
+    # A container that exposes an API to show its IP address
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.docker.localhost`)"
+  node_one:
+    container_name: node1
+    image: node:16-alpine
+    volumes:
+      - ./:/usr/local/bin/app
+    command: ["node", "/usr/local/bin/app/server.js"]
+    environment:
+      - BACKEND=http://node2:3001/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node_one.rule=Host(`node.docker.localhost`)"
+      #- "traefik.http.routers.node_one.rule=Path(`/node`)"
+      - "traefik.http.services.node_one.loadbalancer.server.port=3000"
+      - "traefik.http.routers.node_one.tls=true"
+    networks:
+      - default
+
+  node_two:
+    container_name: node2
+    image: node:16-alpine
+    volumes:
+      - ./:/usr/local/bin/app
+    command: ["node", "/usr/local/bin/app/server2.js"]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node_two.rule=Host(`firewood.itaca.upv.es`) && Path(`/node`)"
+      - "traefik.http.services.node_two.loadbalancer.server.port=3001"
+      #- "traefik.http.routers.node_two.tls=true"
+    networks:
+      - default
+networks:
+  default:
+    driver: bridge
